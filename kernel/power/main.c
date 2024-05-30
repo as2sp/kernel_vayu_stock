@@ -617,7 +617,7 @@ static ssize_t sum_wakeup_time_store(struct kobject *kobj, struct kobj_attribute
 	return error ? error : n;
 }
 
-power_attr_tmp(sum_wakeup_time);
+power_attr(sum_wakeup_time);
 
 static ssize_t last_wake_time_show(struct kobject *kobj, struct kobj_attribute *attr,
 			  char *buf)
@@ -632,7 +632,7 @@ static ssize_t last_wake_time_store(struct kobject *kobj, struct kobj_attribute 
 	return error ? error : n;
 }
 
-power_attr_tmp(last_wake_time);
+power_attr(last_wake_time);
 
 static ssize_t wake_times_show(struct kobject *kobj, struct kobj_attribute *attr,
 			  char *buf)
@@ -647,7 +647,7 @@ static ssize_t wake_times_store(struct kobject *kobj, struct kobj_attribute *att
 	return error ? error : n;
 }
 
-power_attr_tmp(wake_times);
+power_attr(wake_times);
 
 static ssize_t screen_off_flag_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
@@ -666,7 +666,7 @@ static ssize_t screen_off_flag_store(struct kobject *kobj, struct kobj_attribute
 	return n;
 }
 
-power_attr_tmp(screen_off_flag);
+power_attr(screen_off_flag);
 
 #ifdef CONFIG_PM_SLEEP
 /*
