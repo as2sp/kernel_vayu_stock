@@ -1219,7 +1219,7 @@ submit:
 	return err;
 }
 
-static struct discard_cmd *__insert_discard_tree(struct f2fs_sb_info *sbi,
+static void __insert_discard_tree(struct f2fs_sb_info *sbi,
 				struct block_device *bdev, block_t lstart,
 				block_t start, block_t len,
 				struct rb_node **insert_p,
@@ -1228,7 +1228,6 @@ static struct discard_cmd *__insert_discard_tree(struct f2fs_sb_info *sbi,
 	struct discard_cmd_control *dcc = SM_I(sbi)->dcc_info;
 	struct rb_node **p;
 	struct rb_node *parent = NULL;
-	struct discard_cmd *dc = NULL;
 	bool leftmost = true;
 
 	if (insert_p && insert_parent) {
@@ -1240,12 +1239,8 @@ static struct discard_cmd *__insert_discard_tree(struct f2fs_sb_info *sbi,
 	p = f2fs_lookup_rb_tree_for_insert(sbi, &dcc->root, &parent,
 							lstart, &leftmost);
 do_insert:
-	dc = __attach_discard_cmd(sbi, bdev, lstart, start, len, parent,
+	__attach_discard_cmd(sbi, bdev, lstart, start, len, parent,
 								p, leftmost);
-	if (!dc)
-		return NULL;
-
-	return dc;
 }
 
 static void __relocate_discard_cmd(struct discard_cmd_control *dcc,
@@ -2875,6 +2870,15 @@ int f2fs_trim_fs(struct f2fs_sb_info *sbi, struct fstrim_range *range)
 	if (err)
 		goto out;
 
+	/*
+	 * We filed discard candidates, but actually we don't need to wait for
+	 * all of them, since they'll be issued in idle time along with runtime
+	 * discard option. User configuration looks like using runtime discard
+	 * or periodic fstrim instead of it.
+	 */
+	if (f2fs_realtime_discard_enable(sbi))
+		goto out;
+
 	start_block = START_BLOCK(sbi, start_segno);
 	end_block = START_BLOCK(sbi, end_segno + 1);
 
@@ -3100,6 +3104,14 @@ void f2fs_allocate_data_block(struct f2fs_sb_info *sbi, struct page *page,
 		type = CURSEG_COLD_DATA;
 	}
 
+	/*
+	 * We need to wait for node_write to avoid block allocation during
+	 * checkpoint. This can only happen to quota writes which can cause
+	 * the below discard race condition.
+	 */
+	if (IS_DATASEG(type))
+		down_write(&sbi->node_write);
+
 	down_read(&SM_I(sbi)->curseg_lock);
 
 	mutex_lock(&curseg->curseg_mutex);
@@ -3164,6 +3176,9 @@ void f2fs_allocate_data_block(struct f2fs_sb_info *sbi, struct page *page,
 	mutex_unlock(&curseg->curseg_mutex);
 
 	up_read(&SM_I(sbi)->curseg_lock);
+
+	if (IS_DATASEG(type))
+		up_write(&sbi->node_write);
 
 	if (put_pin_sem)
 		up_read(&sbi->pin_sem);
